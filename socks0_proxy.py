@@ -1,6 +1,6 @@
-#!/bin/python3
+#!/usr/bin/python3
 import socket,select
-server_address=("localhost",9999)
+server_address=("localhost",8888)
 proxy_address=("localhost",8989)
 sock=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 sock.bind(server_address)
@@ -20,6 +20,7 @@ while 1:
 			user[connection]=fd
 			user[fd]=connection
 		else:
-			buff=x.recv(1024)
-			user[x].sendall(buff)
+			buff=x.recv(8096)
+			print(buff)
+			#user[x].sendall(buff)
 	pass
