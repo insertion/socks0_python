@@ -1,21 +1,40 @@
 #!/usr/bin/python3
-import socket
+import socket,select
 import urllib.parse
 Host = '' #symbolic name means all available interface
 Port =8989
+fds={}
+user={}
 def server(host,port):
 	s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 	s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)#allow port reuse 
 	s.bind((Host,Port))
-	s.listen(5)
-	print("http server is listening...")
+	s.listen(15)
+	fds[s]=s
+	print("http proxy is listening...")
 	while 1:
 		try:
-			#print("accept")
-			conn,addr=s.accept()
-			print(conn,"is Connection")
-			handle_connection(conn)
-			pass
+			infds,outfds,err=select.select(fds,[],[])
+			for sock in infds:
+				if sock==s:
+					conn,addr=s.accept()
+					handle_connection(conn)
+				else:
+					data=b''
+					while 1:
+						buf=sock.recv(8129)
+						data+=buf
+						if not len(buf):
+							sock.close()
+							break
+					user[sock].sendall(data)
+					user[sock].close()
+					#-----------------------------#
+					#clean fds
+					fds.pop(sock)
+					user.pop(user[sock])
+					user.pop(sock)
+					#------------------------------#
 		except KeyboardInterrupt:
 			print("bye...")
 			break
@@ -64,7 +83,6 @@ def parse_headers(raw_headers):
 	print("%s %s"%(method,full_path))
 	(scm,netloc,path,params,query,fragment)=urllib.parse.urlparse(full_path,"http")
 	i=netloc.split(':')
-	#print("i is ",i,len(i))
 	if len(i)==2:
 		address=i[0],int(i[1])
 	else:
@@ -87,20 +105,14 @@ def handle_connection(conn):
 	else:
 		req_headers+=req_headers+"Connection:close\r\n"
 	req_headers+="\r\n"
+	#send request to real server!
 	soc.sendall(req_headers.encode("utf-8"))
+	#----------------------#
+	fds[soc]=soc
+	user[conn]=soc
+	user[soc]=conn
+	#---------------------#
 
-	#read from server
-	data=b''
-	while 1:
-		#print("read from server")
-		buf=soc.recv(8129)
-		data+=buf
-		if not len(buf):
-			soc.close()
-			break
-	conn.sendall(data)
-	conn.close()
-	print(conn,"is close")
 
 if __name__ == '__main__':
 	server(Host,Port)
